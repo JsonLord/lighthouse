@@ -17,6 +17,26 @@ function normalizeStatus(status) {
 
 /** @param {Record<string, unknown>} resultJson */
 function normalizePinnedSummary(resultJson) {
+  if (Array.isArray(resultJson.results)) {
+    const results = resultJson.results;
+    const steps = results.map(result => ({
+      name: result.title || result.test_key || result.session_id || 'Trailblaze journey',
+      status: normalizeStatus(result.outcome),
+      message: result.failure_reason || result.failure_stack,
+    }));
+    const failed = steps.some(step => step.status === 'FAIL');
+    const skipped = steps.length > 0 && steps.every(step => step.status === 'SKIP');
+    const started = results.map(result => result.started_at).filter(Boolean).sort()[0];
+    const completed = results.map(result => result.completed_at).filter(Boolean).sort().at(-1);
+    return {
+      name: results.length === 1 ? steps[0].name : 'Trailblaze web journeys',
+      status: failed ? 'FAIL' : skipped ? 'SKIP' : 'PASS',
+      steps,
+      startedAt: started,
+      completedAt: completed,
+      durationMs: results.reduce((total, result) => total + (result.duration_ms || 0), 0),
+    };
+  }
   const steps = Array.isArray(resultJson.steps) ? resultJson.steps : [];
   const normalizedSteps = steps.map((step, index) => ({
     name: step.name || step.description || `Step ${index + 1}`,

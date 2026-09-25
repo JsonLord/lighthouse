@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8">
+  <title>Test Hub Checkout</title>
+  <main>
+    <h1>Checkout</h1>
+    <p id="status">Cart ready</p>
+    <button id="submit" type="button">Submit order</button>
+  </main>
+  <script>
+    document.querySelector('#submit').addEventListener('click', () => {
+      document.querySelector('#status').textContent = 'Order confirmed';
+    });
+  </script>
+</html>

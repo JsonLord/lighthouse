@@ -46,6 +46,8 @@ function extractSessionId(stdout) {
     }
     const match = line.match(/\bSession ID:\s*([a-zA-Z0-9_-]+)/);
     if (match) return match[1];
+    const traceMatch = line.match(/\bTrace posted to server for session\s+([a-zA-Z0-9_-]+)/);
+    if (traceMatch) return traceMatch[1];
   }
   throw new Error('Trailblaze did not report the executed session ID');
 }
@@ -79,10 +81,15 @@ async function runLocalTrailblaze(request, context, dependencies = {}) {
   if (execution.spawnError) {
     throw new Error(`Trailblaze could not start: ${execution.spawnError.message}`);
   }
-  if (execution.exitCode !== 0) {
-    throw new Error(`Trailblaze exited with code ${execution.exitCode}`);
+  let sessionId;
+  try {
+    sessionId = extractSessionId(execution.stdout || '');
+  } catch (error) {
+    if (execution.exitCode !== 0) {
+      throw new Error(`Trailblaze exited with code ${execution.exitCode} without a session`);
+    }
+    throw error;
   }
-  const sessionId = extractSessionId(execution.stdout || '');
   logger({
     providerId: 'trailblaze',
     event: 'exit',
