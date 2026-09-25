@@ -1,0 +1,142 @@
+name: Test Hub - Trailblaze
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_hub_run_id:
+        description: Test Hub correlation identifier
+        required: true
+        type: string
+      provider_id:
+        description: Controlled provider identifier
+        required: true
+        type: string
+      test_id:
+        description: Controlled Trailblaze catalog identifier
+        required: true
+        type: choice
+        options: [login, search, checkout]
+      browser:
+        description: Controlled browser identifier
+        required: true
+        default: chromium
+        type: choice
+        options: [chromium]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-hub-trailblaze-${{ inputs.test_hub_run_id }}
+  cancel-in-progress: false
+
+jobs:
+  trailblaze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TRAILBLAZE_VERSION: v2026.09.11
+      PLAYWRIGHT_VERSION: 1.55.0
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+      RESULT_DIR: ${{ github.workspace }}/.test-hub-results
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/test-hub/trailblaze
+            ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: trailblaze-${{ runner.os }}-${{ env.TRAILBLAZE_VERSION }}-pw-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: Resolve controlled test
+        id: catalog
+        shell: bash
+        env:
+          PROVIDER_ID: ${{ inputs.provider_id }}
+          TEST_ID: ${{ inputs.test_id }}
+        run: |
+          test "$PROVIDER_ID" = trailblaze || { echo 'Invalid provider ID' >&2; exit 2; }
+          case "$TEST_ID" in
+            login) trail='test-hub/providers/trailblaze/trails/login/login.trail.yaml' ;;
+            search) trail='test-hub/providers/trailblaze/trails/search/search.trail.yaml' ;;
+            checkout) trail='test-hub/providers/trailblaze/trails/checkout/checkout.trail.yaml' ;;
+            *) echo 'Unknown controlled test ID' >&2; exit 2 ;;
+          esac
+          test -f "$trail" || { echo "Configured trail is unavailable: $trail" >&2; exit 2; }
+          echo "trail=$trail" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Trailblaze release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          install_dir="$HOME/.cache/test-hub/trailblaze/$TRAILBLAZE_VERSION"
+          mkdir -p "$install_dir"
+          if [[ ! -x "$install_dir/trailblaze" ]]; then
+            gh release download "$TRAILBLAZE_VERSION" --repo block/trailblaze \
+              --pattern 'trailblaze-linux-x64*' --dir "$install_dir"
+            archive="$(find "$install_dir" -maxdepth 1 -type f ! -name trailblaze | head -1)"
+            case "$archive" in
+              *.zip) unzip -q "$archive" -d "$install_dir" ;;
+              *.tar.gz|*.tgz) tar -xzf "$archive" -C "$install_dir" ;;
+              *) chmod +x "$archive"; mv "$archive" "$install_dir/trailblaze" ;;
+            esac
+            chmod +x "$install_dir/trailblaze"
+          fi
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Install cached Chromium runtime
+        run: npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
+
+      - name: Run Trailblaze and generate report
+        id: run
+        shell: bash
+        env:
+          TEST_HUB_RUN_ID: ${{ inputs.test_hub_run_id }}
+        run: |
+          mkdir -p "$RESULT_DIR"
+          set +e
+          output="$(trailblaze run --device web --no-daemon \
+            --test-name "test-hub-$TEST_HUB_RUN_ID" \
+            '${{ steps.catalog.outputs.trail }}' 2>&1)"
+          trailblaze_exit_code=$?
+          set -e
+          printf '%s\n' "$output"
+          session_id="$(printf '%s\n' "$output" | sed -n 's/.*Session ID:[[:space:]]*\([A-Za-z0-9_-]*\).*/\1/p' | tail -1)"
+          test -n "$session_id" || { echo 'Trailblaze did not emit a session ID' >&2; exit 3; }
+          trailblaze report --id "$session_id" --output-dir "$RESULT_DIR"
+          echo "session_id=$session_id" >> "$GITHUB_OUTPUT"
+          echo "trailblaze_exit_code=$trailblaze_exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Write Test Hub metadata
+        shell: bash
+        env:
+          TEST_HUB_RUN_ID: ${{ inputs.test_hub_run_id }}
+          TEST_ID: ${{ inputs.test_id }}
+          BROWSER: ${{ inputs.browser }}
+        run: |
+          jq -n \
+            --arg run "$TEST_HUB_RUN_ID" \
+            --arg test "$TEST_ID" \
+            --arg browser "$BROWSER" \
+            --arg session '${{ steps.run.outputs.session_id }}' \
+            --argjson exitCode '${{ steps.run.outputs.trailblaze_exit_code }}' \
+            '{schemaVersion:1,testHubRunId:$run,providerId:"trailblaze",
+              executionMode:"github-actions",testId:$test,
+              trailblazeVersion:"v2026.09.11",browser:$browser,
+              status:"completed",sessionId:$session,trailblazeExitCode:$exitCode,
+              workflow:"test-hub-trailblaze.yml"}' > "$RESULT_DIR/metadata.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-hub-trailblaze-${{ inputs.test_hub_run_id }}
+          path: ${{ env.RESULT_DIR }}
+          if-no-files-found: error
+          retention-days: 14

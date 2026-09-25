@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "session-checkout-20260911",
+  "testName": "Checkout trail",
+  "status": "FAILED",
+  "startedAt": "2026-09-11T10:00:00Z",
+  "completedAt": "2026-09-11T10:00:07Z",
+  "durationMs": 7000,
+  "steps": [
+    {
+      "name": "Open checkout",
+      "status": "PASSED"
+    },
+    {
+      "name": "Submit order",
+      "status": "FAILED",
+      "error": {
+        "message": "Confirmation page was not reached"
+      }
+    }
+  ],
+  "metadata": {
+    "device": "web",
+    "trailFile": "checkout.trail.yaml"
+  }
+}
