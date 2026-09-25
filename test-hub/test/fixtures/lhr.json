@@ -1,0 +1,8 @@
+{
+  "lighthouseVersion": "13.5.0",
+  "requestedUrl": "https://example.com/",
+  "finalDisplayedUrl": "https://example.com/",
+  "fetchTime": "2026-01-01T00:00:00.000Z",
+  "categories": {},
+  "audits": {}
+}

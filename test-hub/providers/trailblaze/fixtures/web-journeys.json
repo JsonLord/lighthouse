@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "platform": "web",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "completedAt": "2026-01-01T00:00:03.000Z",
+  "durationMs": 3000,
+  "journeys": [
+    {"name": "Login", "status": "PASS"},
+    {"name": "Search", "status": "PASS"},
+    {
+      "name": "Checkout",
+      "status": "FAIL",
+      "failedStep": "Submit order",
+      "message": "Confirmation page was not reached."
+    }
+  ],
+  "artifacts": [
+    {
+      "type": "json",
+      "label": "Mock Trailblaze result",
+      "mimeType": "application/json",
+      "path": "test-hub/providers/trailblaze/fixtures/web-journeys.json"
+    },
+    {
+      "type": "html",
+      "label": "Trailblaze standalone report",
+      "mimeType": "text/html",
+      "path": ".test-hub-artifacts/trailblaze/report.html"
+    }
+  ]
+}
