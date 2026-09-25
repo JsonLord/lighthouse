@@ -47,10 +47,10 @@ describe('Trailblaze execution and normalization', () => {
     const result = await normalizeTrailblazeResult({
       executionMode: 'local-cli', resultJson: pinnedSummary,
     }, context);
-    assert.equal(result.title, 'Checkout trail');
+    assert.equal(result.title, 'Test Hub checkout smoke');
     assert.equal(result.status, 'failed');
     assert.equal(result.findings.length, 1);
-    assert.equal(result.findings[0].location?.step, 'Submit order');
+    assert.equal(result.findings[0].location?.step, 'Test Hub checkout smoke');
     assert.equal(result.rawResult, pinnedSummary);
     assert.equal(result.score, undefined);
   });
@@ -59,6 +59,9 @@ describe('Trailblaze execution and normalization', () => {
     assert.equal(createTrailblazeTestName('run:123'), 'test-hub-run_123');
     assert.equal(extractSessionId('{"sessionId":"session-json"}\n'), 'session-json');
     assert.equal(extractSessionId('Completed\nSession ID: session-text\n'), 'session-text');
+    assert.equal(extractSessionId(
+      'Trace posted to server for session test_hub_checkout_908161c6\n'),
+    'test_hub_checkout_908161c6');
     assert.throws(() => extractSessionId('completed without identity'), /session ID/);
   });
 
@@ -102,6 +105,31 @@ describe('Trailblaze execution and normalization', () => {
     await assert.rejects(runLocalTrailblaze({}, {...context, config}, {
       runProcess: async () => ({exitCode: null, timedOut: true}),
     }), /timed out/);
+  });
+
+  it('generates and trusts a report when a failed journey exits nonzero', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'tb-journey-fail-'));
+    const config = {executionMode: 'local-cli', trailPath: '/trail',
+      artifactDirectory: directory};
+    let calls = 0;
+    const raw = await runLocalTrailblaze({}, {...context, config}, {
+      runProcess: async options => {
+        calls++;
+        if (calls === 1) {
+          return {exitCode: 1, timedOut: false,
+            stdout: 'Trace posted to server for session failed_session\n'};
+        }
+        await writeFile(path.join(options.args.at(-1), 'summary.json'), JSON.stringify({
+          results: [{title: 'Failed journey', outcome: 'FAILED',
+            failure_reason: 'Expected confirmation was absent'}],
+        }));
+        return {exitCode: 0, timedOut: false, stdout: ''};
+      },
+    });
+    const result = await normalizeTrailblazeResult(raw, context);
+    assert.equal(result.status, 'failed');
+    assert.equal(raw.execution.run.exitCode, 1);
+    assert.equal(calls, 2);
   });
 
   it('rejects missing and malformed result files', async () => {

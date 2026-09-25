@@ -26,7 +26,9 @@ GitHub credentials and dispatches `.github/workflows/test-hub-trailblaze.yml`.
 
 Workflow inputs are `test_hub_run_id`, `provider_id`, `test_id`, and `browser`.
 The workflow runs on `ubuntu-latest`, sets up Java 17, restores pinned runtime
-caches, downloads Trailblaze `v2026.09.11`, installs cached Chromium, executes
+caches, downloads and checksum-verifies the published `trailblaze` and
+`trailblaze.jar` assets from Trailblaze `v2026.09.11`, installs the pinned
+Playwright 1.59.0 Chromium runtime, serves the deterministic checkout fixture, executes
 the selected recorded trail, and uploads one correlated artifact. No Gradle or
 Android source build occurs in normal runs.
 
@@ -122,7 +124,8 @@ partial composite report.
 
 ## Results and artifacts
 
-The pinned release's `CiSummaryReport`/`SessionResult` `summary.json` document is
+The pinned release's `CiSummaryReport` `summary.json` contains a top-level
+`results` array with snake-case fields and an `outcome` value. The document is
 retained unchanged as `TestResult.rawResult`. Overall status and failed steps
 are normalized without creating a numeric score; unknown additional fields are
 preserved and ignored by normalization.

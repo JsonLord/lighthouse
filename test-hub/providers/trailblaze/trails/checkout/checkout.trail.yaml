@@ -1,0 +1,30 @@
+config:
+  devices:
+    web:
+      driver: PLAYWRIGHT_NATIVE
+  title: 'Test Hub checkout smoke'
+
+trail:
+  - step: 'Open checkout'
+    recording:
+      web:
+        - web_navigate:
+            url: http://127.0.0.1:4173/
+            reasoning: Open the local deterministic checkout fixture.
+
+  - step: 'Submit order'
+    recording:
+      web:
+        - web_click:
+            ref: e3
+            reasoning: Submit the fixture order.
+            nodeSelector:
+              web:
+                cssSelector: '#submit'
+
+  - step: 'Verify confirmation'
+    recording:
+      web:
+        - web_verifyTextVisible:
+            text: 'Order confirmed'
+            reasoning: Confirm the deterministic fixture changed state.
